@@ -12,62 +12,28 @@ Features:
 
 ## Installation
 
-### Claude Code
+Clone this repo directly into your agent's skills directory. Restart the agent afterwards to discover the skill.
 
 ```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/.claude/debug-mode
+# Claude Code
+git clone https://github.com/elitecoder/debug-mode.git ~/.claude/skills/debug-mode
 
-mkdir -p ~/.claude/skills
-ln -s ~/.claude/debug-mode/debug-mode ~/.claude/skills/debug-mode
+# Codex
+git clone https://github.com/elitecoder/debug-mode.git ~/.codex/skills/debug-mode
+
+# Gemini CLI
+git clone https://github.com/elitecoder/debug-mode.git ~/.gemini/skills/debug-mode
+
+# OpenCode
+git clone https://github.com/elitecoder/debug-mode.git ~/.config/opencode/skill/debug-mode
+
+# Cursor
+git clone https://github.com/elitecoder/debug-mode.git ~/.cursor/skills/debug-mode
 ```
 
-Restart Claude Code to discover the skill.
+(Create the parent `skills/` directory first if it doesn't exist: `mkdir -p ~/.claude/skills` etc.)
 
-### Codex
-
-```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/.codex/debug-mode
-
-mkdir -p ~/.codex/skills
-ln -s ~/.codex/debug-mode/debug-mode ~/.codex/skills/debug-mode
-```
-
-Restart Codex to discover the skill.
-
-### Gemini CLI
-
-```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/.gemini/debug-mode
-
-mkdir -p ~/.gemini/skills
-ln -s ~/.gemini/debug-mode/debug-mode ~/.gemini/skills/debug-mode
-```
-
-Or use the built-in install command:
-
-```bash
-gemini skills install https://github.com/elitecoder/debug-mode.git
-```
-
-### OpenCode
-
-```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/.opencode/debug-mode
-
-mkdir -p ~/.config/opencode/skill
-ln -s ~/.opencode/debug-mode/debug-mode ~/.config/opencode/skill/debug-mode
-```
-
-Restart OpenCode to discover the skill.
-
-### Cursor
-
-```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/.cursor/debug-mode
-
-mkdir -p ~/.cursor/skills
-ln -s ~/.cursor/debug-mode/debug-mode ~/.cursor/skills/debug-mode
-```
+To update later: `cd <install-path> && git pull`.
 
 ## How it works
 
@@ -93,7 +59,7 @@ In your agent, just describe a hard-to-diagnose bug, or invoke explicitly:
 /debug-mode the iOS app freezes after the second pull-to-refresh
 ```
 
-The agent will follow the structured loop in [`debug-mode/SKILL.md`](debug-mode/SKILL.md).
+The agent will follow the structured loop in [`SKILL.md`](SKILL.md).
 
 ## Credits
 
