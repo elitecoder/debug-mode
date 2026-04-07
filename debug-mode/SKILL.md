@@ -37,7 +37,7 @@ All logs land in **a per-session timestamped file** under `{project_root}/.claud
 
 **At the start of every debug session, pick a timestamp once** (format `YYYYMMDD-HHMMSS`) and reuse the same path for the rest of the session. Treat it as a hardcoded constant string in any instrumentation you write. PROHIBITED: `import.meta.dir`, `__dirname`, `process.cwd()`, `Deno.cwd()`, `path.resolve()`, `Bundle.main`, runtime time formatting, etc. Exception: remote/CI environments or non-writable local filesystem — use `/tmp/.claude/debug-<timestamp>.log` instead.
 
-If the user is running the ingest server (browser/mobile), it picks the timestamped filename itself on startup and prints it — read that path from its first line of output and use it for the rest of the session. The ingest server also maintains `.claude/debug.log` as a symlink to the newest session for convenience, but **always reference the timestamped file by name** in your reads so parallel sessions stay isolated.
+If you are using the bundled ingest server (browser/mobile flows — see "Starting the ingest server" below), **you start it yourself**; it picks the timestamped filename and writes the path to its startup output. Capture that path and use it for the rest of the session. The ingest server also maintains `.claude/debug.log` as a symlink to the newest session for convenience, but **always reference the timestamped file by name** in your reads so parallel sessions stay isolated.
 
 Before each reproduction *within the same session*: **truncate** that session's log file (do not delete and recreate — keep tail-followers attached).
 
@@ -52,14 +52,30 @@ Before each reproduction *within the same session*: **truncate** that session's 
 | **Android emulator** | `OkHttp` / `HttpURLConnection` POST to `http://10.0.2.2:8792/ingest` (the emulator's host loopback alias) |
 | **Android device** | POST to `http://<mac-lan-ip>:8792/ingest`. Add `usesCleartextTraffic="true"` in the debug manifest only. |
 
-**Starting the ingest server.** Before instrumenting browser or mobile code, tell the user:
+**Starting the ingest server (you do this, not the user).** Before instrumenting any browser or mobile code, spawn the ingest server in the background. The script lives next to this `SKILL.md` at `../scripts/ingest_server.js` relative to the skill file — resolve that path from your tool's view of the skill directory.
+
+Run it as a backgrounded subprocess from the project root:
 
 ```bash
-node {skill_dir}/scripts/ingest_server.js          # localhost only
-HOST=0.0.0.0 node {skill_dir}/scripts/ingest_server.js   # for physical devices on LAN
+# Browser, iOS simulator, Android emulator → localhost is enough
+node <skill_dir>/scripts/ingest_server.js &
+
+# Physical iOS / Android device on the same LAN
+HOST=0.0.0.0 node <skill_dir>/scripts/ingest_server.js &
 ```
 
-The server appends each POST as one NDJSON line to `.claude/debug.log`. It accepts JSON bodies (preferred) or plain text.
+Then **read the server's startup output** (first 2 lines) to learn:
+
+1. The actual bound port (the server may have walked past `8792` if it was in use):
+   `[debug-mode] ingest listening on http://127.0.0.1:<PORT>`
+2. The session log file path:
+   `[debug-mode] writing to /abs/path/.claude/debug-<timestamp>-<pid>.log`
+
+**Hardcode that exact port and log path** into the rest of the session — into your instrumentation, into your log-reads, into your cleanup. Do NOT assume `8792`. Do NOT compute the path at runtime.
+
+Record the server's PID so you can stop it in Phase 6.
+
+The server appends each POST as one NDJSON line to the session log file. It accepts JSON bodies (preferred) or plain text. It auto-creates `.claude/` if needed.
 
 **Fallback for Android without network:** instead of HTTP, instrument with `Log.d("DEBUG_H1", ...)` and have the user run `adb logcat -s DEBUG_H1 DEBUG_H2 DEBUG_H3 > .claude/debug.log` in a side terminal. Tags map directly to hypotheses.
 
@@ -122,7 +138,13 @@ Clear `.claude/debug.log`, ask user to verify the fix works, then **STOP and wai
 
 ## Phase 6: Verify & Clean Up
 
-**If fixed:** Remove all `#region DEBUG` blocks and contents (use Grep to find them across all extensions, including `.swift`, `.kt`, `.kts`, `.plist`, `.xml`). Delete this session's `.claude/debug-<timestamp>.log` (leave other parallel sessions' files alone). Stop the ingest server if you started it. Revert any debug-only ATS exceptions / cleartext flags. Summarize.
+**If fixed:** Clean up in this order:
+
+1. Remove all `#region DEBUG` blocks and contents (use Grep across all extensions, including `.swift`, `.kt`, `.kts`, `.plist`, `.xml`).
+2. Revert any debug-only ATS exceptions / cleartext flags wrapped in XML region markers.
+3. **Stop the ingest server** if you started one — `kill <recorded_pid>` (or `kill %1` if it was the only background job you spawned). Verify it's gone with `ps -p <pid>` returning nothing. Never leave the server running after the session.
+4. Delete this session's `.claude/debug-<timestamp>-<pid>.log` (leave other parallel sessions' files alone). Leave the `.claude/debug.log` symlink alone — the server cleans it up implicitly on next use.
+5. Summarize the root cause, the fix, and confirm cleanup is complete.
 
 **If NOT fixed:** Read new logs, ask what they observed, return to **Phase 2**, iterate.
 
@@ -137,3 +159,4 @@ Clear `.claude/debug.log`, ask user to verify the fix works, then **STOP and wai
 - **Always wrap instrumentation in `#region DEBUG` blocks.**
 - **Always wait for the user** after asking them to reproduce.
 - **On mobile, batch hypotheses aggressively** to minimize rebuild cycles.
+- **You own the ingest server's lifecycle.** If you started it, you must stop it before declaring the session done. Never ask the user to start or stop it.

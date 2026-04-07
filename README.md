@@ -12,45 +12,28 @@ Features:
 
 ## Install
 
-Symlink (or copy) the `debug-mode/` directory into your agent's skills folder:
+Clone once to a stable location, then symlink the inner `debug-mode/` directory into your agent's skills folder:
 
 ```bash
+git clone https://github.com/elitecoder/debug-mode.git ~/src/debug-mode
+
 # Claude Code
-ln -s "$PWD/debug-mode" ~/.claude/skills/debug-mode
+mkdir -p ~/.claude/skills && ln -s ~/src/debug-mode/debug-mode ~/.claude/skills/debug-mode
 
 # Codex
-ln -s "$PWD/debug-mode" ~/.codex/skills/debug-mode
+mkdir -p ~/.codex/skills && ln -s ~/src/debug-mode/debug-mode ~/.codex/skills/debug-mode
 
 # Gemini CLI
-ln -s "$PWD/debug-mode" ~/.gemini/skills/debug-mode
+mkdir -p ~/.gemini/skills && ln -s ~/src/debug-mode/debug-mode ~/.gemini/skills/debug-mode
 ```
 
-(Create the parent `skills/` directory first if it doesn't exist.)
+You can also `cp -r` instead of symlinking if you prefer not to keep the source clone around.
 
-## Run the ingest server
+## How it works
 
-```bash
-# Localhost only — for browser and iOS simulator / Android emulator
-node scripts/ingest_server.js
+You don't run anything yourself. When the agent decides browser or mobile log collection is needed, it spawns the bundled HTTP ingest server in the background, parses the bound port from its startup line, instruments your code to POST there, then shuts the server down once the bug is fixed and instrumentation is cleaned up.
 
-# LAN-exposed — required for physical iOS / Android devices
-HOST=0.0.0.0 node scripts/ingest_server.js
-
-# Custom log file / port
-PORT=9000 LOG_FILE=./.claude/debug.log node scripts/ingest_server.js
-```
-
-The server appends every POST to `/ingest` (or `/`) as one NDJSON line. JSON bodies are merged with a `ts` field; non-JSON bodies become `{ "message": "..." }`.
-
-### Quick smoke test
-
-```bash
-node scripts/ingest_server.js &
-curl -s -X POST http://127.0.0.1:8792/ingest \
-  -H 'Content-Type: application/json' \
-  -d '{"h":"H1","msg":"hello","vars":{"x":1}}'
-cat .claude/debug.log
-```
+The ingest server is zero-dependency Node. It appends every POST to `/ingest` (or `/`) as one NDJSON line into `.claude/debug-<timestamp>-<pid>.log`. JSON bodies are merged with a `ts` field; non-JSON bodies become `{ "message": "..." }`. It auto-falls-back across ports on `EADDRINUSE` and supports LAN binding (`HOST=0.0.0.0`) for physical devices — the agent picks the right mode based on the target environment.
 
 ## Transports cheat sheet
 
