@@ -26,10 +26,9 @@ git clone https://github.com/elitecoder/debug-mode.git ~/.gemini/skills/debug-mo
 
 # OpenCode
 git clone https://github.com/elitecoder/debug-mode.git ~/.config/opencode/skill/debug-mode
-
-# Cursor
-git clone https://github.com/elitecoder/debug-mode.git ~/.cursor/skills/debug-mode
 ```
+
+(Cursor isn't listed — it has [native Debug Mode](https://cursor.com/blog/debug-mode), which is what this skill is inspired by.)
 
 (Create the parent `skills/` directory first if it doesn't exist: `mkdir -p ~/.claude/skills` etc.)
 
