@@ -10,24 +10,64 @@ Features:
 - **Region-marker cleanup** for JS/TS, Python, Go, Rust, Java, C#, Swift, Kotlin, Lua, HTML/Vue/Svelte — instrumentation is fully removable in one pass once the bug is fixed.
 - **Parallel sessions** via timestamped+PID log filenames.
 
-## Install
+## Installation
 
-Clone once to a stable location, then symlink the inner `debug-mode/` directory into your agent's skills folder:
+### Claude Code
 
 ```bash
-git clone https://github.com/elitecoder/debug-mode.git ~/src/debug-mode
+git clone https://github.com/elitecoder/debug-mode.git ~/.claude/debug-mode
 
-# Claude Code
-mkdir -p ~/.claude/skills && ln -s ~/src/debug-mode/debug-mode ~/.claude/skills/debug-mode
-
-# Codex
-mkdir -p ~/.codex/skills && ln -s ~/src/debug-mode/debug-mode ~/.codex/skills/debug-mode
-
-# Gemini CLI
-mkdir -p ~/.gemini/skills && ln -s ~/src/debug-mode/debug-mode ~/.gemini/skills/debug-mode
+mkdir -p ~/.claude/skills
+ln -s ~/.claude/debug-mode/debug-mode ~/.claude/skills/debug-mode
 ```
 
-You can also `cp -r` instead of symlinking if you prefer not to keep the source clone around.
+Restart Claude Code to discover the skill.
+
+### Codex
+
+```bash
+git clone https://github.com/elitecoder/debug-mode.git ~/.codex/debug-mode
+
+mkdir -p ~/.codex/skills
+ln -s ~/.codex/debug-mode/debug-mode ~/.codex/skills/debug-mode
+```
+
+Restart Codex to discover the skill.
+
+### Gemini CLI
+
+```bash
+git clone https://github.com/elitecoder/debug-mode.git ~/.gemini/debug-mode
+
+mkdir -p ~/.gemini/skills
+ln -s ~/.gemini/debug-mode/debug-mode ~/.gemini/skills/debug-mode
+```
+
+Or use the built-in install command:
+
+```bash
+gemini skills install https://github.com/elitecoder/debug-mode.git
+```
+
+### OpenCode
+
+```bash
+git clone https://github.com/elitecoder/debug-mode.git ~/.opencode/debug-mode
+
+mkdir -p ~/.config/opencode/skill
+ln -s ~/.opencode/debug-mode/debug-mode ~/.config/opencode/skill/debug-mode
+```
+
+Restart OpenCode to discover the skill.
+
+### Cursor
+
+```bash
+git clone https://github.com/elitecoder/debug-mode.git ~/.cursor/debug-mode
+
+mkdir -p ~/.cursor/skills
+ln -s ~/.cursor/debug-mode/debug-mode ~/.cursor/skills/debug-mode
+```
 
 ## How it works
 
