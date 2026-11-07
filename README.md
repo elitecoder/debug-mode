@@ -1,18 +1,48 @@
 # debug-mode
 
-A hypothesis-driven debugging skill for coding agents (Claude Code, Codex, Gemini CLI, and any agent that supports the [skills](https://code.claude.com/docs/en/skills) format). Works across backend, browser, and native mobile apps. The agent generates testable hypotheses, instruments your code with targeted logs, has you reproduce the bug, then diagnoses and fixes from real evidence — never blind guessing.
+**A hypothesis-driven debugging skill for coding agents.**
 
-Features:
+When a bug is hard to pin down, debug-mode stops your agent from guessing. The agent lists testable hypotheses, adds a few targeted logs, waits while you reproduce the bug, and fixes it from what the logs show. It works with Claude Code, Codex, Gemini CLI, and any agent that supports the [skills](https://code.claude.com/docs/en/skills) format, across backend, browser, and native mobile code.
 
-- **Hypothesis-driven workflow** with human-in-the-loop verification at each phase.
-- **HTTP ingest server** (`scripts/ingest_server.js`) for browser and mobile log delivery — zero dependencies, pure Node. Auto-falls-back across ports, timestamped per-session log files, optional LAN binding for physical devices.
-- **Cross-platform transports**: server file-append, browser `fetch`, iOS simulator (`os_log` + `simctl log stream`), iOS device (URLSession + LAN ingest), Android emulator (`10.0.2.2:8792`), Android device (`adb logcat` fallback or LAN ingest).
-- **Region-marker cleanup** for JS/TS, Python, Go, Rust, Java, C#, Swift, Kotlin, Lua, HTML/Vue/Svelte — instrumentation is fully removable in one pass once the bug is fixed.
-- **Parallel sessions** via timestamped+PID log filenames.
+![A Claude Code session running debug-mode on a small shop page. The agent lists four hypotheses, H1 to H4, each tied to a log it added, and asks you to run ./repro.sh. The repro output below shows the total is $441.00 instead of $63.00.](docs/images/session-hypotheses.png)
 
-## Installation
+## Features
 
-Clone this repo directly into your agent's skills directory. Restart the agent afterwards to discover the skill.
+### Hypotheses before fixes
+
+The agent reads the code and names the causes it can test, obvious and not so obvious (race conditions, off-by-one errors, stale closures, type coercion, threading, lifecycle). Even when it has a strong suspect, it adds a log for each hypothesis before it changes any behavior. On mobile, it front-loads four or five hypotheses per pass, because each round costs a rebuild.
+
+![The agent says it suspects the quantity is stored as a string and adds a small helper that POSTs to the ingest server on port 8792. Every added line sits between // #region DEBUG and // #endregion DEBUG markers.](docs/images/instrumentation.png)
+
+### Logs that reach the agent from anywhere
+
+For server code, instrumentation appends to a log file. For browsers and mobile apps, the agent starts the bundled ingest server (`scripts/ingest_server.js`), a zero-dependency Node server that writes every POST as one JSON line to `.claude/debug-<timestamp>-<pid>.log`. It moves to the next port if `8792` is taken, and binds to your LAN for physical devices. Every log line is tagged with the hypothesis it tests, so the diagnosis cites evidence.
+
+![The agent reads the session log written by the ingest server. The H1 line shows the quantity before the click was the string "2" and after the click the string "21".](docs/images/ingest-log.png)
+
+| Environment | Endpoint |
+|---|---|
+| Browser | `http://127.0.0.1:8792/ingest` |
+| iOS simulator | `http://127.0.0.1:8792/ingest` (or `os_log` + `simctl log stream`) |
+| iOS device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, ATS exception) |
+| Android emulator | `http://10.0.2.2:8792/ingest` |
+| Android device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, cleartext flag) |
+
+### You stay in the loop, then it cleans up
+
+The agent stops and waits after it asks you to reproduce, and again after it proposes a fix. Once you confirm, it removes every `#region DEBUG` block, stops the ingest server it started, and deletes its session log.
+
+![After you confirm the total is $63.00, the agent reports the root cause, the two-line fix in setQty, and the cleanup: instrumentation removed, ingest server stopped, and session log deleted.](docs/images/fix-and-cleanup.png)
+
+### Also in the box
+
+- **Region-marker cleanup** for JS and TS, Python, Go, Rust, Java, C#, Swift, Kotlin, Lua, and HTML, Vue, and Svelte, so all instrumentation comes out in one pass.
+- **Parallel sessions**: each ingest server writes its own timestamped log file, and `.claude/debug.log` points at the newest one.
+- **No-network fallbacks**: `adb logcat` on Android and `simctl log stream` on the iOS simulator.
+
+## Install
+
+Clone this repo into your agent's skills directory, then restart the agent so it finds the skill. Create the parent `skills/` directory first if it doesn't exist.
 
 ```bash
 # Claude Code
@@ -28,43 +58,37 @@ git clone https://github.com/elitecoder/debug-mode.git ~/.gemini/skills/debug-mo
 git clone https://github.com/elitecoder/debug-mode.git ~/.config/opencode/skill/debug-mode
 ```
 
-(Cursor isn't listed — it has [native Debug Mode](https://cursor.com/blog/debug-mode), which is what this skill is inspired by.)
+Cursor isn't listed because it has a [native Debug Mode](https://cursor.com/blog/debug-mode), which inspired this skill.
 
-(Create the parent `skills/` directory first if it doesn't exist: `mkdir -p ~/.claude/skills` etc.)
-
-To update later: `cd <install-path> && git pull`.
-
-## How it works
-
-You don't run anything yourself. When the agent decides browser or mobile log collection is needed, it spawns the bundled HTTP ingest server in the background, parses the bound port from its startup line, instruments your code to POST there, then shuts the server down once the bug is fixed and instrumentation is cleaned up.
-
-The ingest server is zero-dependency Node. It appends every POST to `/ingest` (or `/`) as one NDJSON line into `.claude/debug-<timestamp>-<pid>.log`. JSON bodies are merged with a `ts` field; non-JSON bodies become `{ "message": "..." }`. It auto-falls-back across ports on `EADDRINUSE` and supports LAN binding (`HOST=0.0.0.0`) for physical devices — the agent picks the right mode based on the target environment.
-
-## Transports cheat sheet
-
-| Environment | Endpoint |
-|---|---|
-| Browser | `http://127.0.0.1:8792/ingest` |
-| iOS simulator | `http://127.0.0.1:8792/ingest` (or `os_log` + `simctl log stream`) |
-| iOS device | `http://<mac-lan-ip>:8792/ingest` (HOST=0.0.0.0, ATS exception) |
-| Android emulator | `http://10.0.2.2:8792/ingest` |
-| Android device | `http://<mac-lan-ip>:8792/ingest` (HOST=0.0.0.0, cleartext flag) |
+To update, run `git pull` in the install directory.
 
 ## Usage
 
-In your agent, just describe a hard-to-diagnose bug, or invoke explicitly:
+Describe a hard-to-diagnose bug to your agent, or invoke the skill directly:
 
 ```
 /debug-mode the iOS app freezes after the second pull-to-refresh
 ```
 
-The agent will follow the structured loop in [`SKILL.md`](SKILL.md).
+The agent follows the loop in [`SKILL.md`](SKILL.md). You never start or stop the ingest server yourself; the agent owns it.
+
+## Requirements
+
+- Node.js 22 or later, for the ingest server and its tests.
+
+## Contributing
+
+Run the tests with `npm test`, or `npm run test:coverage` to check coverage.
 
 ## Credits
 
-Inspired by [Cursor's Debug Mode](https://cursor.com/blog/debug-mode), and by two earlier ports of the idea to coding agents:
+Inspired by [Cursor's Debug Mode](https://cursor.com/blog/debug-mode) and by two earlier ports of the idea to coding agents:
 
-- [doraemonkeys/claude-code-debug-mode](https://github.com/doraemonkeys/claude-code-debug-mode) — the hypothesis-driven workflow and `#region DEBUG` cleanup convention.
-- [laiso/claude-code-dmd](https://github.com/laiso/claude-code-dmd) — the idea of a localhost HTTP ingest for runtime log collection.
+- [doraemonkeys/claude-code-debug-mode](https://github.com/doraemonkeys/claude-code-debug-mode), for the hypothesis-driven workflow and the `#region DEBUG` cleanup convention.
+- [laiso/claude-code-dmd](https://github.com/laiso/claude-code-dmd), for the localhost HTTP ingest idea.
 
-This project takes those ideas and extends them with mobile transports, parallel sessions, and a zero-dependency Node ingest server.
+This project adds mobile transports, parallel sessions, and a zero-dependency Node ingest server.
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
