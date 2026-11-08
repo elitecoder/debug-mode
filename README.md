@@ -2,43 +2,35 @@
 
 **A hypothesis-driven debugging skill for coding agents.**
 
-When a bug is hard to pin down, debug-mode stops your agent from guessing. The agent lists testable hypotheses, adds a few targeted logs, waits while you reproduce the bug, and fixes it from what the logs show. It works with Claude Code, Codex, Gemini CLI, and any agent that supports the [skills](https://code.claude.com/docs/en/skills) format, across backend, browser, and native mobile code.
+Your agent tests hypotheses with real logs instead of guessing, then fixes the bug from the evidence. It works with Claude Code, Codex, Gemini CLI, and other agents that support [skills](https://code.claude.com/docs/en/skills).
 
-![A Claude Code session running debug-mode on a small shop page. The agent lists four hypotheses, H1 to H4, each tied to a log it added, and asks you to run ./repro.sh. The repro output below shows the total is $441.00 instead of $63.00.](docs/images/session-hypotheses.png)
+![The agent's root cause for a shop page bug: the quantity input stored the string "2", so clicking + made it "21" and the total came out as $441. With the fix, it goes from 2 to 3.](docs/images/root-cause.png)
 
 ## Features
 
-### Hypotheses before fixes
+### Hypotheses first
 
-The agent reads the code and names the causes it can test, obvious and not so obvious (race conditions, off-by-one errors, stale closures, type coercion, threading, lifecycle). Even when it has a strong suspect, it adds a log for each hypothesis before it changes any behavior. On mobile, it front-loads four or five hypotheses per pass, because each round costs a rebuild.
+The agent states what it suspects and adds a log for each hypothesis before it changes any code. You see why it believes the fix, not just the fix.
 
-![The agent says it suspects the quantity is stored as a string and adds a small helper that POSTs to the ingest server on port 8792. Every added line sits between // #region DEBUG and // #endregion DEBUG markers.](docs/images/instrumentation.png)
+![The agent states its suspicion, that "2" += 1 becomes "21", and says it is adding logs to confirm before changing anything.](docs/images/hypotheses.png)
 
-### Logs that reach the agent from anywhere
+### Logs from browser and phone
 
-For server code, instrumentation appends to a log file. For browsers and mobile apps, the agent starts the bundled ingest server (`scripts/ingest_server.js`), a zero-dependency Node server that writes every POST as one JSON line to `.claude/debug-<timestamp>-<pid>.log`. It moves to the next port if `8792` is taken, and binds to your LAN for physical devices. Every log line is tagged with the hypothesis it tests, so the diagnosis cites evidence.
+A bundled zero-dependency ingest server collects logs over HTTP from browsers, simulators, and devices. Bugs that only happen outside the terminal still leave evidence the agent can read.
 
-![The agent reads the session log written by the ingest server. The H1 line shows the quantity before the click was the string "2" and after the click the string "21".](docs/images/ingest-log.png)
+![One line from the ingest log for hypothesis H1: the quantity was "2" before the click and "21" after, both strings.](docs/images/ingest-log.png)
 
-| Environment | Endpoint |
-|---|---|
-| Browser | `http://127.0.0.1:8792/ingest` |
-| iOS simulator | `http://127.0.0.1:8792/ingest` (or `os_log` + `simctl log stream`) |
-| iOS device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, ATS exception) |
-| Android emulator | `http://10.0.2.2:8792/ingest` |
-| Android device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, cleartext flag) |
+### Cleans up after itself
 
-### You stay in the loop, then it cleans up
+Once you confirm the fix, the agent removes every `#region DEBUG` block, stops the server, and deletes its log. Your diff ends up with only the fix.
 
-The agent stops and waits after it asks you to reproduce, and again after it proposes a fix. Once you confirm, it removes every `#region DEBUG` block, stops the ingest server it started, and deletes its session log.
-
-![After you confirm the total is $63.00, the agent reports the root cause, the two-line fix in setQty, and the cleanup: instrumentation removed, ingest server stopped, and session log deleted.](docs/images/fix-and-cleanup.png)
+![The cleanup summary: debug blocks gone so git diff shows only the fix, log server stopped, session log deleted.](docs/images/cleanup.png)
 
 ### Also in the box
 
-- **Region-marker cleanup** for JS and TS, Python, Go, Rust, Java, C#, Swift, Kotlin, Lua, and HTML, Vue, and Svelte, so all instrumentation comes out in one pass.
-- **Parallel sessions**: each ingest server writes its own timestamped log file, and `.claude/debug.log` points at the newest one.
-- **No-network fallbacks**: `adb logcat` on Android and `simctl log stream` on the iOS simulator.
+- Region markers for JS and TS, Python, Go, Rust, Java, C#, Swift, Kotlin, Lua, and HTML, Vue, and Svelte.
+- Parallel sessions, each with its own timestamped log file.
+- Fallbacks without network: `adb logcat` on Android and `simctl log stream` on the iOS simulator.
 
 ## Install
 
@@ -71,6 +63,18 @@ Describe a hard-to-diagnose bug to your agent, or invoke the skill directly:
 ```
 
 The agent follows the loop in [`SKILL.md`](SKILL.md). You never start or stop the ingest server yourself; the agent owns it.
+
+## Transports
+
+The agent starts the ingest server (`scripts/ingest_server.js`) itself. It writes each POST as one JSON line to `.claude/debug-<timestamp>-<pid>.log`, moves to the next port if `8792` is taken, and binds to your LAN with `HOST=0.0.0.0` for physical devices.
+
+| Environment | Endpoint |
+|---|---|
+| Browser | `http://127.0.0.1:8792/ingest` |
+| iOS simulator | `http://127.0.0.1:8792/ingest` (or `os_log` + `simctl log stream`) |
+| iOS device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, ATS exception) |
+| Android emulator | `http://10.0.2.2:8792/ingest` |
+| Android device | `http://<mac-lan-ip>:8792/ingest` (`HOST=0.0.0.0`, cleartext flag) |
 
 ## Requirements
 
